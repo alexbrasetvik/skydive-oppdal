@@ -72,10 +72,9 @@ class SuggestHandler(base.Handler):
 
         cls._content = ';'.join(buf)
         cls._suffix_array = range(len(cls._content))
-        cls._suffix_array.sort(key=lambda a: buffer(cls._content, a))
 
-        cls._suffix_array_built = True
-        print 'Built suffix array!'
+        lowered_content = cls._content.lower()
+        cls._suffix_array.sort(key=lambda a: buffer(lowered_content, a))
 
     @classmethod
     def find_first_match(cls, query):

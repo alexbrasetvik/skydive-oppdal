@@ -17,7 +17,7 @@ class SuggestHandler(base.Handler):
     @defer.inlineCallbacks
     def get(self):
         engine = yield self.engine_dependency.wait_for_resource()
-        if not self._content:
+        if not self._content or self.get_argument('rebuild', False):
             yield threads.deferToThread(self._build_suffix_array, engine)
 
         query = self.get_argument('q').lower().encode('utf8')

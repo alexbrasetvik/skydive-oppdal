@@ -1,0 +1,28 @@
+database:
+    engines:
+        jr:
+            engine:
+                url: mssql+pyodbc://JR
+
+plugins:
+  bundles:
+    jr:
+      - jr
+
+
+cyclone:
+    site_name:
+        application:
+            handlers:
+                - ['/api/v0/manifests(?:/(?P<plane_id>\d+))?/?', jr.manifest.ManifestHandler]
+                - ['/api/v0/suggest', jr.suggest.SuggestHandler]
+
+                - ['/api/v0/customers/(?P<customer_id>\d+)/?', jr.customer.CustomerHandler]
+                - ['/api/v0/customers/(?P<customer_id>\d+)/payments', jr.customer.PaymentHandler]
+                - ['/api/v0/customers/(?P<customer_id>\d+)/invoices', jr.customer.InvoiceHandler]
+
+            cookie_secret: whateverlkjasdlkfj
+            debug: true
+            debug_allow:
+                - 127.0.0.1
+                - 192.168.133.1

@@ -1,10 +1,13 @@
+import datetime
 import decimal
+import json
 
 from cyclone import web
 from piped import util
 from piped.processors import base
 from piped_cyclone import handlers
 from twisted.internet import threads, defer
+import formencode
 import sqlalchemy as sa
 
 from jr import model, exceptions
@@ -13,7 +16,10 @@ from jr import model, exceptions
 class JSONEncoder(util.PipedJSONEncoder):
 
     def default(self, obj):
-        if isinstance(obj, decimal.Decimal):
+        if isinstance(obj, datetime.datetime):
+            # Blissfully unaware of timezones.
+            return obj.strftime('%Y-%m-%dT%H:%M:%S')
+        elif isinstance(obj, decimal.Decimal):
             return '%.02f' % obj
         return super(JSONEncoder, self).default(obj)
 

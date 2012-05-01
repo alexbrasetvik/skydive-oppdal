@@ -14,7 +14,7 @@ cyclone:
     site_name:
         application:
             handlers:
-                - ['/api/v0/manifests(?:/(?P<plane_id>\d+))?/?', jr.manifest.ManifestHandler]
+                - ['/api/v0/manifests(?:/(?P<plane_id>\d+)(?:/(?P<manifest_id>\d+))?)?/?', jr.manifest.ManifestHandler]
                 - ['/api/v0/suggest', jr.suggest.SuggestHandler]
 
                 - ['/api/v0/customers/(?P<customer_id>\d+)/?', jr.customer.CustomerHandler]

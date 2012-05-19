@@ -1,7 +1,8 @@
 import datetime
 import functools
 
-from sqlalchemy import orm
+from sqlalchemy import orm, event
+from sqlalchemy.orm import attributes
 from sqlalchemy.ext import declarative
 from sqlalchemy.ext.declarative import declared_attr
 from twisted.internet import defer, threads
@@ -35,6 +36,11 @@ class _Base(object):
     def __circular_json__(self):
         return dict((key, getattr(self, key)) for key in self.json_attributes if self.is_loaded(key))
 
+    def get_next_id(self, column=None):
+        if column is None:
+            column = list(self.__table__.primary_key)[0]
+        return (self.session.execute(sa.select([sa.func.max(column)])).scalar() or 0) + 1
+
 
 Base = declarative.declarative_base(cls=_Base)
 
@@ -56,6 +62,36 @@ Session = orm.sessionmaker(
     expire_on_commit=False,
     class_=_Session
 )
+
+
+
+def maintain_balances(session):
+    for inserted in session.new:
+        if isinstance(inserted, Invoice):
+            inserted.customer.balance += inserted.price
+        elif isinstance(inserted, Payment):
+            inserted.customer.balance -= inserted.amount
+
+    for deleted in session.deleted:
+        if isinstance(deleted, Invoice):
+            deleted.customer.balance -= deleted.price
+        elif isinstance(deleted, Payment):
+            deleted.customer.balance += deleted.amount
+
+    for dirty in session.dirty:
+        if isinstance(dirty, Invoice):
+            # If the price changed, update the balance accordingly
+            new, old = sqlalchemy.orm.attributes.get_history(dirty, 'price').sum()
+            dirty.customer.balance += old - new
+        elif isinstance(dirty, Payment):
+            dirty.customer.balance += old - new
+
+        # TODO: Move this out of here. With authentication in place, we also want to know modified_by.
+        if hasattr(dirty, 'last_modified'):
+            dirty.last_modified = datetime.datetime.now()
+
+
+event.listen(Session, 'before_commit', maintain_balances)
 
 
 def with_session(method, timeout=None):
@@ -124,6 +160,7 @@ class Plane(Base, _CommonMixin):
     capacity = sa.Column('nCapacity', sa.BigInteger)
     cycle_time = sa.Column('nCycletime', sa.BigInteger)
     is_active = sa.Column('bActive', sa.Boolean)
+    default_item_id = sa.Column('wDefItemId', sa.Integer)
 
     json_attributes = ('plane_id', 'name', 'capacity', 'cycle_time', 'is_active') + _CommonMixin.json_attributes
     json_relations = ('manifests', )
@@ -133,9 +170,11 @@ class Manifest(Base, _CommonMixin):
     __tablename__ = 'tMani'
 
     manifest_id = sa.Column('nMani', sa.BigInteger, primary_key=True, autoincrement=False)
+    load_number = sa.Column('nLoad', sa.BigInteger) # ... for plane.
+
     plane_id = sa.Column('nPlaneId', sa.BigInteger, sa.ForeignKey('tPlane.nId'))
-    _status = sa.Column('nStatus', sa.BigInteger)
-    departure = sa.Column('dtDepart', sa.DateTime)
+    _status = sa.Column('nStatus', sa.BigInteger, default=1)
+    departure = sa.Column('dtDepart', sa.DateTime, default=lambda: datetime.datetime.now() + datetime.timedelta(minutes=20))
 
     plane = orm.relationship('Plane', uselist=False, backref='manifests')
 
@@ -146,6 +185,45 @@ class Manifest(Base, _CommonMixin):
     def status(self):
         return ('manifest', 'scheduled', 'loading', 'departed', 'landed')[self._status]
 
+    # Stuff from plane, repeated, because normalization is apparently lame.
+    capacity = sa.Column('nCapacity', sa.BigInteger)
+    cycle_time = sa.Column('nCycleTime', sa.BigInteger)
+    redundant_key = sa.Column('nManiNo', sa.BigInteger)
+    number_of_jumpers = sa.Column('nRiders', sa.BigInteger, default=0) # TODO: update when adding/removing jump-items. (i.e. not price modifiers)
+    default_item_id = sa.Column('wDefAlt', sa.BigInteger)
+
+    # A bunch of attributes we do not use, but that JumpRun needs to have non-NULLs for:
+    _empty_arm = sa.Column('hEmptyArm', Decimal(), default=0)
+    _empty_wt = sa.Column('hEmptyWt', Decimal(), default=0)
+    _fuel1 = sa.Column('hFuel1', Decimal(), default=0)
+    _fuel2 = sa.Column('hFuel2', Decimal(), default=0)
+    _fuel_arm1 = sa.Column('hFuelArm1', Decimal(), default=0)
+    _fuel_arm2 = sa.Column('hFuelArm2', Decimal(), default=0)
+
+    _center_of_gravity = sa.Column('hCG', Decimal(), default=0)
+    _aft_cg_lim = sa.Column('hAftCGLim', Decimal(), default=0)
+    _fwd_cg_lim = sa.Column('hFwdCGLim', Decimal(), default=0)
+    _fwd_cg_lim = sa.Column('hFwdCGLim', Decimal(), default=0)
+    _max_weight = sa.Column('hMaxWt', Decimal(), default=0)
+    _gross_weight = sa.Column('hGrossWt', Decimal(), default=0)
+
+    _team_count = sa.Column('nTeamCount', sa.BigInteger, default=0)
+    _in_use_by = sa.Column('sInUseBy', sa.Text, default='')
+
+    def populate(self):
+        self._copy_stuff_from_plane()
+        self._set_ids_including_those_useless_but_still_necessary()
+
+    def _copy_stuff_from_plane(self):
+        for key in ('capacity', 'cycle_time', 'default_item_id'):
+            setattr(self, key, getattr(self.plane, key))
+
+    def _set_ids_including_those_useless_but_still_necessary(self):
+        columns = self.__table__.c
+        self.manifest_id = self.get_next_id()
+        self.redundant_key = self.get_next_id(columns.nManiNo)
+        self.load_number = (self.session.execute(sa.select([columns.nLoad]).where(columns.nPlaneId == self.plane_id)).scalar() or 0) + 1
+
 
 class Item(Base, _CommonMixin):
     __tablename__ = 'tPrices'
@@ -153,7 +231,11 @@ class Item(Base, _CommonMixin):
     item_id = sa.Column('wItemId', sa.BigInteger, primary_key=True, autoincrement=False)
     name = sa.Column('sItem', sa.Text)
     price = sa.Column('cPrice', Money())
-    item_type = sa.Column('nPriceType', sa.BigInteger)
+    _item_type = sa.Column('nPriceType', sa.BigInteger)
+
+    @property
+    def item_type(self):
+        return {1: 'jump', 3: 'jump_modifier', 4: 'counter_sale'}[self._item_type]
 
     json_attributes = ('item_id', 'name', 'price', 'item_type') + _CommonMixin.json_attributes
 

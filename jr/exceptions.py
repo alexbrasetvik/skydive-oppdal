@@ -45,3 +45,15 @@ class InvalidJSON(BadRequest):
 
 class TemporaryError(JRError):
     status_code = http.SERVICE_UNAVAILABLE
+
+
+class Conflict(JRError):
+    status_code = http.CONFLICT
+
+
+class LoadIsFull(Conflict):
+    pass
+
+
+class AlreadyOnLoad(Conflict):
+    pass

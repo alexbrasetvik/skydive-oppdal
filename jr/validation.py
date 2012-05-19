@@ -8,10 +8,15 @@ class Spec(formencode.Schema):
 
 
 class AddJumper(Spec):
-
     plane_id = validators.Int()
     customer_id = validators.Int()
     manifest_id = validators.Int()
     item_id = validators.Int()
     comment = validators.UnicodeString(if_missing=None)
     price = validators.Int()
+
+
+class AddManifest(Spec):
+    plane_id = validators.Int()
+    # TODO: departure time, etc.
+

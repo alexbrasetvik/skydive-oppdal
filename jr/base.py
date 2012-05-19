@@ -13,18 +13,56 @@ import sqlalchemy as sa
 from jr import model, exceptions
 
 
-class JSONEncoder(util.PipedJSONEncoder):
+class JSONEncoder(json.JSONEncoder):
+    """ JSON-encoder that's aware of datetimes, decimals and objects
+    that provide their own serialization through `__json__` and
+    `__circular__json__`.
+
+    If an object has a `__json__`-method, its result will be used to
+    serialize the object --- unless we've already seen it, in which
+    case `__circular_json__` is used.
+
+    Since JumpRun is so full of garbage datetimes, any datetime before
+    our own "epoch" (currently 2006) is ignored and returned as
+    None. See code-comments for more. :)
+    """
+    epoch = datetime.datetime(2006, 1, 1)
+
+    def __init__(self, **kw):
+        kw.setdefault('indent', 4)
+        # Disable the circularity-check, as we do it ourselves below:
+        # at least to the extent needed to serialize the
+        # model-instances with circular backrefs.
+        kw.setdefault('check_circular', False)
+        super(JSONEncoder, self).__init__(**kw)
+        self._already_visited = set()
 
     def default(self, obj):
-        if isinstance(obj, datetime.datetime):
+        if hasattr(obj, '__json__'):
+            if obj not in self._already_visited:
+                self._already_visited.add(obj)
+                return obj.__json__()
+            elif hasattr(obj, '__circular_json__'):
+                return obj.__circular_json__()
+            raise ValueError('Circular reference detected')
+
+        elif isinstance(obj, datetime.datetime):
+            if obj < self.epoch:
+                # Yeah, so there are many weird ways to express "no such date" in JR, apparently.
+                # Sometimes it's 1998, other times it's 1899 --- and a few places a NULL.
+                # We don't care about them (we started the current JR-DB in 2006), and strftime barfs
+                # on dates < year 1900.
+                return
             # Blissfully unaware of timezones.
             return obj.strftime('%Y-%m-%dT%H:%M:%S')
         elif isinstance(obj, decimal.Decimal):
             return '%.02f' % obj
+
         return super(JSONEncoder, self).default(obj)
 
 
-json_encoder = JSONEncoder(indent=4)
+def encode_json(*a, **kw):
+    return JSONEncoder().encode(*a, **kw)
 
 
 class Handler(handlers.DebuggableHandler):
@@ -50,14 +88,14 @@ class Handler(handlers.DebuggableHandler):
         e = kwargs.get('exception')
         if isinstance(e, exceptions.JRError):
             self.set_status(e.status_code)
-            self.write(json_encoder.encode(e.__json__()))
+            self.write(encode_json(e.__json__()))
             self.finish()
         else:
             return handlers.DebuggableHandler.write_error(self, status_code, **kwargs)
 
     def write_json(self, data):
         self.set_header("Content-Type", "application/json; charset=utf-8")
-        self.write(json_encoder.encode(data))
+        self.write(encode_json(data))
 
     def get_validated_data(self, validator, **data):
         try:
@@ -83,7 +121,7 @@ class Handler(handlers.DebuggableHandler):
         self.finish()
 
     def update_user_cookie(self):
-        self.set_secure_cookie('u', json_encoder.encode(self.current_user))
+        self.set_secure_cookie('u', encode_json(self.current_user))
 
     def patch(self, *a, **kw):
         raise exceptions.BadMethod('not implemented')

@@ -25,9 +25,15 @@ class _Base(object):
     def is_loaded(self, key):
         return key not in self.instance_state.unloaded and hasattr(self, key)
 
+    json_attributes = tuple()
+    json_relations = tuple()
+
     def __json__(self):
-        return dict((key, getattr(self, key)) for key in self.json_attributes
+        return dict((key, getattr(self, key)) for key in self.json_attributes + self.json_relations
                     if self.is_loaded(key))
+
+    def __circular_json__(self):
+        return dict((key, getattr(self, key)) for key in self.json_attributes if self.is_loaded(key))
 
 
 Base = declarative.declarative_base(cls=_Base)
@@ -86,8 +92,8 @@ class Customer(Base, _CommonMixin):
 
     data = orm.relationship('CustomerData', uselist=False, backref='person')
 
-    json_attributes = ('customer_id', 'name', 'balance', 'is_student', 'last_jump',
-                       'data')
+    json_attributes = ('customer_id', 'name', 'balance', 'is_student', 'last_jump') + _CommonMixin.json_attributes
+    json_relations = ('data', )
 
     @property
     def balance_color(self):
@@ -119,8 +125,8 @@ class Plane(Base, _CommonMixin):
     cycle_time = sa.Column('nCycletime', sa.BigInteger)
     is_active = sa.Column('bActive', sa.Boolean)
 
-    json_attributes = ('plane_id', 'name', 'capacity', 'cycle_time', 'is_active',
-                       'manifests')
+    json_attributes = ('plane_id', 'name', 'capacity', 'cycle_time', 'is_active') + _CommonMixin.json_attributes
+    json_relations = ('manifests', )
 
 
 class Manifest(Base, _CommonMixin):
@@ -133,8 +139,8 @@ class Manifest(Base, _CommonMixin):
 
     plane = orm.relationship('Plane', uselist=False, backref='manifests')
 
-    json_attributes = ('manifest_id', 'status', 'departure',
-                       'plane', 'invoices')
+    json_attributes = ('manifest_id', 'status', 'departure') + _CommonMixin.json_attributes
+    json_relations = ('plane', 'invoices')
 
     @property
     def status(self):
@@ -149,7 +155,7 @@ class Item(Base, _CommonMixin):
     price = sa.Column('cPrice', Money())
     item_type = sa.Column('nPriceType', sa.BigInteger)
 
-    json_attributes = ('item_id', 'name', 'price', 'item_type')
+    json_attributes = ('item_id', 'name', 'price', 'item_type') + _CommonMixin.json_attributes
 
 
 class _InvoiceMixin(_CommonMixin):
@@ -205,11 +211,11 @@ class _InvoiceMixin(_CommonMixin):
         return orm.relationship('Item')
 
     json_attributes = ('invoice_id', 'comment', 'price', 'manifest_id', 'customer_id', 'business_date', 'quantity',
-                       'manual_price', 'machine',
-                       'item', 'customer', 'manifest') + _CommonMixin.json_attributes
+                       'manual_price', 'machine') + _CommonMixin.json_attributes
+    json_relations = ('item', 'customer', 'manifest')
 
 
-class Invoice(Base, _InvoiceMixin):
+class Invoice(_InvoiceMixin, Base):
     __tablename__ = 'tInv'
 
     customer =  orm.relationship('Customer', backref='invoices', uselist=False,
@@ -217,7 +223,7 @@ class Invoice(Base, _InvoiceMixin):
     manifest = orm.relationship('Manifest', backref='invoices', uselist=False)
 
 
-class ArchivedInvoice(Base, _InvoiceMixin):
+class ArchivedInvoice(_InvoiceMixin, Base):
     __tablename__ = 'tInvAll'
 
     business_date = sa.Column('dtProcess', sa.DateTime)
@@ -245,8 +251,8 @@ class _PaymentMixin(_CommonMixin):
     def method(self):
         return {0: 'transfer', 1: 'cash', 2: 'check', 6: 'credit', 7: 'debit', 8: 'redemption'}.get(self._method, self._method)
 
-    json_attributes = ('payment_id', 'comment', 'amount', 'transaction_type', 'method', 'business_date',
-                       'customer')
+    json_attributes = ('payment_id', 'comment', 'amount', 'transaction_type', 'method', 'business_date')
+    json_relations = ('customer', )
 
 
 class Payment(Base, _PaymentMixin):

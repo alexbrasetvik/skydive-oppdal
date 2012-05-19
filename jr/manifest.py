@@ -91,9 +91,5 @@ class ManifestHandler(base.Handler):
 
         session.commit()
 
-        session.expire_all()
-        session.refresh(customer)
-        _ = manifest.invoices # We want to return this, so tap it while the session is still around.
-
         # Return customer and manifest, as those are changed as a result of adding the jumper.
         return dict(customer=customer, manifest=manifest)

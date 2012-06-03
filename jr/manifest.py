@@ -8,8 +8,11 @@ from jr import base, model, validation, exceptions
 class ManifestHandler(base.Handler):
 
     validators = dict(
+        # Really add_item
         add_jumper=validation.AddJumper,
         add_manifest=validation.AddManifest,
+        update_item=validation.UpdateItem,
+        update_manifest=validation.UpdateManifest
     )
 
     @defer.inlineCallbacks
@@ -67,8 +70,6 @@ class ManifestHandler(base.Handler):
         plane_id = spec['plane_id']
         manifest_id = spec['manifest_id']
 
-        session = model.Session(bind=sa.create_engine('mssql+pyodbc://JR', use_scope_identity=False))
-
         manifest = (
             session.query(model.Manifest).
             join(model.Plane).
@@ -115,9 +116,12 @@ class ManifestHandler(base.Handler):
         invoice.item = item
         invoice.comment = spec.get('comment')
 
-        price = spec.get('price') or item.price
+        price = spec.get('price')
+        if price is None:
+            price = item.price
+
         invoice.price = price
-        invoice.manual_price = bool(spec.get('price'))
+        invoice.manual_price = spec.get('price') is not None
 
         manifest.invoices.append(invoice)
 
@@ -128,6 +132,36 @@ class ManifestHandler(base.Handler):
 
         # Return customer and manifest, as those are changed as a result of adding the jumper.
         return dict(customer=customer, manifest=manifest)
+
+    @defer.inlineCallbacks
+    def patch(self, plane_id, manifest_id=None, customer_id=None, item_id=None):
+        if customer_id:
+            spec = self.get_validated_post_data('update_item', dict(plane_id=plane_id, manifest_id=manifest_id, customer_id=customer_id, existing_item_id=item_id))
+            result = yield self._update_customer_item(spec)
+        else:
+            spec = self.get_validated_post_data('update_manifest', dict(plane_id=plane_id, manifest_id=manifest_id))
+            result = yield self._update_manifest(plane_id, manifest_id)
+
+        self.succeed_with_json_and_finish(result=result)
+
+    @model.with_session
+    def _update_customer_item(self, session, spec):
+        invoice = (session.query(model.Invoice).join(model.Manifest).
+            filter(model.Invoice.item_id == spec['existing_item_id']).
+            filter(model.Invoice.customer_id == spec['customer_id']).
+            filter(model.Manifest.manifest_id == spec['manifest_id']).
+            filter(model.Manifest.plane_id == spec['plane_id'])
+        ).first()
+
+        if not invoice:
+            raise exceptions.NoSuchResource('customer does not have an invoice of that type for that load')
+
+        for key, value in spec.items():
+            if value is not Ellipsis and hasattr(invoice, key):
+                setattr(invoice, key, value)
+
+        session.commit()
+        return invoice
 
     @defer.inlineCallbacks
     def delete(self, plane_id, manifest_id=None, customer_id=None, item_id=None):

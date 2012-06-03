@@ -81,7 +81,7 @@ def maintain_balances(session):
     for dirty in session.dirty:
         if isinstance(dirty, Invoice):
             # If the price changed, update the balance accordingly
-            new, old = sqlalchemy.orm.attributes.get_history(dirty, 'price').sum()
+            new, old = attributes.get_history(dirty, 'price').sum()
             dirty.customer.balance += old - new
         elif isinstance(dirty, Payment):
             dirty.customer.balance += old - new
@@ -222,7 +222,7 @@ class Manifest(Base, _CommonMixin):
         columns = self.__table__.c
         self.manifest_id = self.get_next_id()
         self.redundant_key = self.get_next_id(columns.nManiNo)
-        self.load_number = (self.session.execute(sa.select([columns.nLoad]).where(columns.nPlaneId == self.plane_id)).scalar() or 0) + 1
+        self.load_number = (self.session.execute(sa.select([sa.func.max(columns.nLoad)]).where(columns.nPlaneId == self.plane.plane_id)).scalar() or 0) + 1
 
 
 class Item(Base, _CommonMixin):
@@ -303,6 +303,7 @@ class Invoice(_InvoiceMixin, Base):
     customer =  orm.relationship('Customer', backref='invoices', uselist=False,
                                  primaryjoin="Invoice.customer_id == Customer.customer_id")
     manifest = orm.relationship('Manifest', backref='invoices', uselist=False)
+
 
 
 class ArchivedInvoice(_InvoiceMixin, Base):

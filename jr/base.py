@@ -56,7 +56,7 @@ class JSONEncoder(json.JSONEncoder):
             # Blissfully unaware of timezones.
             return obj.strftime('%Y-%m-%dT%H:%M:%S')
         elif isinstance(obj, decimal.Decimal):
-            return '%.02f' % obj
+            return int(100 * obj)
 
         return super(JSONEncoder, self).default(obj)
 

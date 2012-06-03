@@ -1,5 +1,13 @@
+import decimal
 import formencode
 from formencode import validators
+
+
+class Money(validators.Int):
+
+    def to_python(self, value, state=None):
+        value = super(Money, self).to_python(value, state)
+        return decimal.Decimal(value) / decimal.Decimal(100)
 
 
 class Spec(formencode.Schema):
@@ -13,7 +21,7 @@ class AddJumper(Spec):
     manifest_id = validators.Int()
     item_id = validators.Int()
     comment = validators.UnicodeString(if_missing=None)
-    price = validators.Int()
+    price = Money(if_missing=None)
 
 
 class AddManifest(Spec):

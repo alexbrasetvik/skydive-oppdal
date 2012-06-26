@@ -22,16 +22,11 @@ class JSONEncoder(json.JSONEncoder):
     serialize the object --- unless we've already seen it, in which
     case `__circular_json__` is used.
 
-    Since JumpRun is so full of garbage datetimes, any datetime before
-    our own "epoch" (currently 2006) is ignored and returned as
-    None. See code-comments for more. :)
-
     Decimals are returned as integers multipled by 100 by
     default. Pass `decimal_as_multipled_int=False` to return the
     string-representation instead. This is because JavaScript does not
     have a decimal type, and you don't want to use floats. :)
     """
-    epoch = datetime.datetime(2006, 1, 1)
 
     def __init__(self, **kw):
         kw.setdefault('indent', 4)
@@ -53,14 +48,15 @@ class JSONEncoder(json.JSONEncoder):
             raise ValueError('Circular reference detected')
 
         elif isinstance(obj, datetime.datetime):
-            if obj < self.epoch:
+            try:
+                # Blissfully unaware of timezones.
+                return obj.strftime('%Y-%m-%dT%H:%M:%S')
+            except Exception:
                 # Yeah, so there are many weird ways to express "no such date" in JR, apparently.
                 # Sometimes it's 1998, other times it's 1899 --- and a few places a NULL.
                 # We don't care about them (we started the current JR-DB in 2006), and strftime barfs
-                # on dates < year 1900.
-                return
-            # Blissfully unaware of timezones.
-            return obj.strftime('%Y-%m-%dT%H:%M:%S')
+                # on dates < year 1900. There's a "dtProcess" from 2001, and we have to include that, though.
+                return None
 
         elif isinstance(obj, decimal.Decimal):
             if self.decimal_as_multipled_int:
@@ -143,3 +139,5 @@ class Handler(handlers.DebuggableHandler):
 
     def patch(self, *a, **kw):
         raise exceptions.BadMethod('not implemented')
+
+

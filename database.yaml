@@ -1,0 +1,9 @@
+database:
+    engines:
+        jr:
+            engine:
+                url: mssql+pyodbc://JR
+                # TODO: This is not set correctly by the database provider.
+                pool_size: 2
+                max_overflow: 1
+                echo: 0

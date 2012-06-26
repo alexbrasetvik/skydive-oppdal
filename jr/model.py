@@ -117,6 +117,24 @@ class _CommonMixin:
     json_attributes = ('insertion_time', 'last_modified', 'inserted_by', 'updated_by')
 
 
+class SystemConfiguration(Base):
+    __tablename__ = 'tConfig'
+
+    configuration_id = sa.Column('nId', sa.BigInteger, primary_key=True, autoincrement=False)
+    key = sa.Column('sKey', sa.Text)
+    value = sa.Column('sValue', sa.Text)
+    description = sa.Column('sDescr', sa.Text)
+    documentation = sa.Column('sDocumentation', sa.Text)
+    data_type = sa.Column('sDataType', sa.Text)
+
+    _is_reserved = sa.Column('bReserved', sa.Boolean)
+    _reserved = sa.Column('sReserved', sa.Text)
+    _expose_bus_def = sa.Column('bExposeBusDef', sa.Boolean)
+    _expose_booking = sa.Column('bExposeBooking', sa.Boolean)
+    _expost_jrun = sa.Column('bExpostJrun', sa.Boolean)
+    _display_seq = sa.Column('nDisplaySeq', sa.BigInteger)
+
+
 class Customer(Base, _CommonMixin):
     __tablename__ = 'tPeople'
 
@@ -274,6 +292,7 @@ class Item(Base, _CommonMixin):
     item_id = sa.Column('wItemId', sa.BigInteger, primary_key=True, autoincrement=False)
     name = sa.Column('sItem', sa.Text)
     price = sa.Column('cPrice', Money())
+    category_id = sa.Column('nCategId', sa.BigInteger)
 
     _item_type = sa.Column('nPriceType', sa.BigInteger)
     @property

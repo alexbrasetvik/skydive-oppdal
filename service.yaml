@@ -1,12 +1,3 @@
-database:
-    engines:
-        jr:
-            engine:
-                url: mssql+pyodbc://JR
-                # TODO: This is not set correctly by the database provider.
-                pool_size: 2
-                max_overflow: 1
-
 plugins:
   bundles:
     jr:
@@ -14,5 +5,6 @@ plugins:
 
 
 includes:
+    - database.yaml
     - sync-client.yaml
     - site.yaml

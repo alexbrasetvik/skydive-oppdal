@@ -1,0 +1,38 @@
+includes:
+    - pb-client.yaml
+    - database.yaml
+
+
+plugins:
+    bundles:
+        jr:
+            - jr
+
+pipelines:
+    do-complete-restore:
+        chained_consumers:
+            - log:
+                message: 'Do not change anything in JumpRun while this process is running'
+                level: WARN
+
+            - load-all-the-things
+            - log:
+                message: 'Shipping data. This will take some time.'
+
+            - ship-jr-changes:
+                method: restore
+                input_path: table_data
+            - empty-jr-audit-tables:
+                empty_everything: true
+
+            - log:
+                message: 'Done. You can use JumpRun again :-)'
+                level: WARN
+            - shutdown
+
+system-events:
+    startup:
+        restore: pipeline.do-complete-restore
+
+logging:
+    default: DEBUG

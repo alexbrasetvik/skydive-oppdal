@@ -27,13 +27,13 @@ pipelines:
                 lambda: 'pipeline: dict(restore=0, apply_changes=1).get(pipeline, -1)'
                 consumers:
                     - eval-lambda:
-                        lambda: "baton: dict(deferred=baton['deferred'], table_data=baton['kwargs']['table_data'])"
+                        lambda: "baton: dict(deferred=baton['deferred'], table_data=baton['kwargs']['data'])"
                         consumers:
                         - run-pipeline:
                             pipeline: .complete-restore
 
                     - eval-lambda:
-                        lambda: "baton: dict(deferred=baton['deferred'], changes=baton['kwargs']['changes'])"
+                        lambda: "baton: dict(deferred=baton['deferred'], changes=baton['kwargs']['data'])"
                         consumers:
                         - run-pipeline:
                             pipeline: .apply-changes
@@ -47,7 +47,17 @@ pipelines:
 
         complete-restore:
             chained_consumers:
-                - stop
+                - log:
+                    message: 'Starting complete restore'
+                - decode-json:
+                    input_path: table_data
+
+                - truncate-and-restore-jr-tables
+
+                - callback-deferred:
+                        result: success
+                - log:
+                    message: 'Finished'
 
         apply-changes:
             chained_consumers:

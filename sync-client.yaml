@@ -1,9 +1,5 @@
-pb:
-    clients:
-        jrsync_client:
-            # If DNS is unavailable when the server boots, it'll crap out completely.
-            #endpoint: tcp:host=78.47.243.37:port=8789
-            endpoint: tcp:host=10.0.0.64:port=8789
+includes:
+    - pb-client.yaml
 
 
 pipelines:
@@ -11,7 +7,9 @@ pipelines:
         get-changes:
             chained_consumers:
                 - get-jr-changes
-                - ship-jr-changes
+                - ship-jr-changes:
+                    method: apply_changes
+                    input_path: changes
                 - empty-jr-audit-tables
 
 

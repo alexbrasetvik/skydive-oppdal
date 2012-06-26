@@ -1,0 +1,23 @@
+pb:
+    clients:
+        jrsync_client:
+            # If DNS is unavailable when the server boots, it'll crap out completely.
+            #endpoint: tcp:host=78.47.243.37:port=8789
+            endpoint: tcp:host=10.0.0.64:port=8789
+
+
+pipelines:
+    sync-client:
+        get-changes:
+            chained_consumers:
+                - get-jr-changes
+                - ship-jr-changes
+                - empty-jr-audit-tables
+
+
+ticks:
+    interval:
+        get-changes:
+            interval: 3
+            processor:
+                provider: pipeline.sync-client.get-changes

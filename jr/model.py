@@ -126,9 +126,25 @@ class Customer(Base, _CommonMixin):
     last_jump = sa.Column('dtLastJump', sa.DateTime)
     is_student = sa.Column('bStudent', sa.Boolean)
 
+    waiver_signed = sa.Column('dtWaiver', sa.DateTime)
+    reserve_packed = sa.Column('dtReservePacked', sa.DateTime)
+
+    adjustment_is_percent = sa.Column('bAdjIsPercent', sa.Boolean, default=False)
+    adjust_jumps_only = sa.Column('bAdjJumpsOnly', sa.Boolean, default=False)
+
+    # Hold is the only exception.
+    _show_in_manifest = sa.Column('bShowForManifest', sa.Boolean, default=True)
+    _svc_provider = sa.Column('bSvcProvider', sa.Boolean, default=False)
+    _clear_blank_check = sa.Column('bClearBlankCheck', sa.Boolean, default=True)
+    _prohibit = sa.Column('bFlagProhibit', sa.Boolean, default=False)
+    _inhibit_balance_warning = sa.Column('bInhibitWarnBal', sa.Boolean, default=False)
+    _inhibit_all_warnings = sa.Column('bInhibitAllWarns', sa.Boolean, default=False)
+    _in_use = sa.Column('bInUse', sa.Boolean, default=False)
+    _never_bill = sa.Column('bNeverBill', sa.Boolean, default=False)
+
     data = orm.relationship('CustomerData', uselist=False, backref='person')
 
-    json_attributes = ('customer_id', 'name', 'balance', 'is_student', 'last_jump') + _CommonMixin.json_attributes
+    json_attributes = ('customer_id', 'name', 'balance', 'is_student', 'last_jump', 'waiver_signed', 'reserve_packed') + _CommonMixin.json_attributes
     json_relations = ('data', )
 
     @property
@@ -144,6 +160,13 @@ class CustomerData(Base):
     __tablename__ = 'tPeopleAncillary'
     customer_id = sa.Column('wCustId', sa.BigInteger, sa.ForeignKey('tPeople.wCustId'), primary_key=True, autoincrement=False)
     email = sa.Column('sEmail', sa.Text)
+    first_name = sa.Column('sFirstName', sa.Text)
+    middle_name = sa.Column('sMI', sa.Text)
+    last_name = sa.Column('sLastName', sa.Text)
+
+    _bool1 = sa.Column('bUserBool1', sa.Boolean, default=False)
+    _bool2 = sa.Column('bUserBool2', sa.Boolean, default=False)
+    _bool3 = sa.Column('bUserBool3', sa.Boolean, default=False)
 
     json_attributes = ('email', )
 
@@ -166,20 +189,19 @@ class Plane(Base, _CommonMixin):
     json_relations = ('manifests', )
 
 
-class Manifest(Base, _CommonMixin):
-    __tablename__ = 'tMani'
 
+class _ManifestMixin(_CommonMixin):
     manifest_id = sa.Column('nMani', sa.BigInteger, primary_key=True, autoincrement=False)
     load_number = sa.Column('nLoad', sa.BigInteger) # ... for plane.
 
-    plane_id = sa.Column('nPlaneId', sa.BigInteger, sa.ForeignKey('tPlane.nId'))
+    @declared_attr
+    def plane_id(cls):
+        return sa.Column('nPlaneId', sa.BigInteger, sa.ForeignKey('tPlane.nId'))
+
     _status = sa.Column('nStatus', sa.BigInteger, default=1)
+
+    # TODO: This should really come from the plane.
     departure = sa.Column('dtDepart', sa.DateTime, default=lambda: datetime.datetime.now() + datetime.timedelta(minutes=20))
-
-    plane = orm.relationship('Plane', uselist=False, backref='manifests')
-
-    json_attributes = ('manifest_id', 'status', 'departure') + _CommonMixin.json_attributes
-    json_relations = ('plane', 'invoices')
 
     @property
     def status(self):
@@ -209,6 +231,16 @@ class Manifest(Base, _CommonMixin):
 
     _team_count = sa.Column('nTeamCount', sa.BigInteger, default=0)
     _in_use_by = sa.Column('sInUseBy', sa.Text, default='')
+    _in_use = sa.Column('bInUse', sa.Boolean, default=False)
+
+
+class Manifest(Base, _ManifestMixin):
+    __tablename__ = 'tMani'
+
+    plane = orm.relationship('Plane', uselist=False, backref='manifests')
+
+    json_attributes = ('manifest_id', 'status', 'departure') + _CommonMixin.json_attributes
+    json_relations = ('plane', 'invoices')
 
     def populate(self):
         self._copy_stuff_from_plane()
@@ -225,17 +257,39 @@ class Manifest(Base, _CommonMixin):
         self.load_number = (self.session.execute(sa.select([sa.func.max(columns.nLoad)]).where(columns.nPlaneId == self.plane.plane_id)).scalar() or 0) + 1
 
 
+class ArchivedManifest(Base, _ManifestMixin):
+    __tablename__ = 'tManiAll'
+
+    business_date = sa.Column('dtProcess', sa.DateTime, primary_key=True)
+
+    plane = orm.relationship('Plane', uselist=False, backref='archived_manifests')
+
+    json_attributes = ('manifest_id', 'status', 'departure') + _CommonMixin.json_attributes
+    json_relations = ('plane', 'archived_invoices')
+
+
 class Item(Base, _CommonMixin):
     __tablename__ = 'tPrices'
 
     item_id = sa.Column('wItemId', sa.BigInteger, primary_key=True, autoincrement=False)
     name = sa.Column('sItem', sa.Text)
     price = sa.Column('cPrice', Money())
-    _item_type = sa.Column('nPriceType', sa.BigInteger)
 
+    _item_type = sa.Column('nPriceType', sa.BigInteger)
     @property
     def item_type(self):
         return {1: 'jump', 3: 'jump_modifier', 4: 'counter_sale'}[self._item_type]
+
+    is_active = sa.Column('bActive', sa.Boolean, default=True)
+
+    _person_req = sa.Column('bPersonReq', sa.Boolean, default=False)
+    _time_is_percent = sa.Column('bTimeIsPercent', sa.Boolean, default=False)
+    _weekday_is_percent = sa.Column('bWkDayIsPercent', sa.Boolean, default=False)
+    _cash_is_percent = sa.Column('bCashIsPercent', sa.Boolean, default=False)
+    _group_is_percent = sa.Column('bGroupisPercent', sa.Boolean, default=False)
+    _user_is_percent = sa.Column('bUserIsPercent', sa.Boolean, default=False)
+    _is_redeemable = sa.Column('bRedeemable', sa.Boolean, default=False)
+    _track_inventory = sa.Column('bTrackInventory', sa.Boolean, default=False)
 
     json_attributes = ('item_id', 'name', 'price', 'item_type') + _CommonMixin.json_attributes
 
@@ -273,10 +327,6 @@ class _InvoiceMixin(_CommonMixin):
     _related_to = sa.Column('wRelatedTo', sa.Integer, default=0)
 
     @declared_attr
-    def manifest_id(cls):
-        return sa.Column('nMani', sa.BigInteger, sa.ForeignKey('tMani.nMani'))
-
-    @declared_attr
     def customer_id(cls):
         return sa.Column('wCustId', sa.BigInteger, sa.ForeignKey('tPeople.wCustId'))
 
@@ -300,6 +350,8 @@ class _InvoiceMixin(_CommonMixin):
 class Invoice(_InvoiceMixin, Base):
     __tablename__ = 'tInv'
 
+    manifest_id = sa.Column('nMani', sa.BigInteger, sa.ForeignKey('tMani.nMani'))
+
     customer =  orm.relationship('Customer', backref='invoices', uselist=False,
                                  primaryjoin="Invoice.customer_id == Customer.customer_id")
     manifest = orm.relationship('Manifest', backref='invoices', uselist=False)
@@ -309,12 +361,17 @@ class Invoice(_InvoiceMixin, Base):
 class ArchivedInvoice(_InvoiceMixin, Base):
     __tablename__ = 'tInvAll'
 
-    business_date = sa.Column('dtProcess', sa.DateTime)
+    manifest_id =  sa.Column('nMani', sa.BigInteger)
+    business_date = sa.Column('dtProcess', sa.DateTime, primary_key=True)
+
+    __table_args__ = (
+        sa.ForeignKeyConstraint(['dtProcess', 'nMani'], ['tManiAll.dtProcess', 'tManiAll.nMani']),
+    )
 
     customer = orm.relationship('Customer', backref=orm.backref('archived_invoices', order_by=sa.desc('dtProcess')), uselist=False,
                                  primaryjoin="ArchivedInvoice.customer_id == Customer.customer_id")
 
-    manifest = orm.relationship('Manifest', backref=orm.backref('archived_invoices', order_by=sa.desc('dtProcess')), uselist=False)
+    manifest = orm.relationship('ArchivedManifest', backref=orm.backref('archived_invoices', order_by=sa.desc('dtProcess')), uselist=False)
 
 
 class _PaymentMixin(_CommonMixin):
@@ -346,6 +403,7 @@ class Payment(Base, _PaymentMixin):
 
 class ArchivedPayment(Base, _PaymentMixin):
     __tablename__ = 'tPmtAll'
-    business_date = sa.Column('dtProcess', sa.DateTime)
+    business_date = sa.Column('dtProcess', sa.DateTime, primary_key=True)
+
     customer_id = sa.Column('wCustId', sa.BigInteger, sa.ForeignKey('tPeople.wCustId'))
     customer = orm.relationship('Customer', backref=orm.backref('archived_payments', order_by=sa.desc('dtProcess')), uselist=False)

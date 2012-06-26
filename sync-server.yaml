@@ -1,0 +1,64 @@
+database:
+    engines:
+        jr:
+            engine:
+                url: postgresql://@/jr
+
+
+plugins:
+    bundles:
+        jr:
+            - jr
+
+
+pb:
+    servers:
+        jrsync_receiver:
+            listen: tcp:8789
+            processor: pipeline.sync-server.dispatch
+
+
+pipelines:
+    sync-server:
+
+        dispatch:
+            - lambda-decider:
+                input_path: message
+                lambda: 'pipeline: dict(restore=0, apply_changes=1).get(pipeline, -1)'
+                consumers:
+                    - eval-lambda:
+                        lambda: "baton: dict(deferred=baton['deferred'], table_data=baton['kwargs']['table_data'])"
+                        consumers:
+                        - run-pipeline:
+                            pipeline: .complete-restore
+
+                    - eval-lambda:
+                        lambda: "baton: dict(deferred=baton['deferred'], changes=baton['kwargs']['changes'])"
+                        consumers:
+                        - run-pipeline:
+                            pipeline: .apply-changes
+                error_consumers:
+                    - exec-code:
+                        namespace:
+                            failure: twisted.python.failure
+                        code: |
+                            input['deferred'].errback(failure.Failure())
+                            return input
+
+        complete-restore:
+            chained_consumers:
+                - stop
+
+        apply-changes:
+            chained_consumers:
+                - decode-json:
+                    input_path: changes
+
+                - apply-jr-changes
+
+                - callback-deferred:
+                    result: success
+
+
+
+

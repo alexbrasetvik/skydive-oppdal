@@ -25,6 +25,11 @@ class JSONEncoder(json.JSONEncoder):
     Since JumpRun is so full of garbage datetimes, any datetime before
     our own "epoch" (currently 2006) is ignored and returned as
     None. See code-comments for more. :)
+
+    Decimals are returned as integers multipled by 100 by
+    default. Pass `decimal_as_multipled_int=False` to return the
+    string-representation instead. This is because JavaScript does not
+    have a decimal type, and you don't want to use floats. :)
     """
     epoch = datetime.datetime(2006, 1, 1)
 
@@ -34,6 +39,7 @@ class JSONEncoder(json.JSONEncoder):
         # at least to the extent needed to serialize the
         # model-instances with circular backrefs.
         kw.setdefault('check_circular', False)
+        self.decimal_as_multipled_int = kw.pop('decimal_as_multipled_int', True)
         super(JSONEncoder, self).__init__(**kw)
         self._already_visited = set()
 
@@ -55,14 +61,27 @@ class JSONEncoder(json.JSONEncoder):
                 return
             # Blissfully unaware of timezones.
             return obj.strftime('%Y-%m-%dT%H:%M:%S')
+
         elif isinstance(obj, decimal.Decimal):
-            return int(100 * obj)
+            if self.decimal_as_multipled_int:
+                return int(100 * obj)
+            else:
+                return str(obj)
 
         return super(JSONEncoder, self).default(obj)
 
 
 def encode_json(*a, **kw):
     return JSONEncoder().encode(*a, **kw)
+
+
+database_dependency_spec = dict(provider='database.engine.jr')
+
+
+class _DBProcessor(base.Processor):
+
+    def configure(self, runtime_environment):
+        self.engine_dependency = runtime_environment.dependency_manager.add_dependency(self, database_dependency_spec)
 
 
 class Handler(handlers.DebuggableHandler):
@@ -75,8 +94,7 @@ class Handler(handlers.DebuggableHandler):
 
     @classmethod
     def configure(cls, runtime_environment):
-        dependency_spec = dict(provider='database.engine.jr')
-        cls.engine_dependency = runtime_environment.dependency_manager.add_dependency(cls, dependency_spec)
+        cls.engine_dependency = runtime_environment.dependency_manager.add_dependency(cls, database_dependency_spec)
 
     def get_current_user(self):
         cookie = self.get_secure_cookie('u')

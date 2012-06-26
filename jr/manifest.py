@@ -125,8 +125,10 @@ class ManifestHandler(base.Handler):
 
         manifest.invoices.append(invoice)
 
-        # TODO: Set last_jump. Note that dtProcess is not necessarily today.
-        # update tMani?
+        # Note. Setting the customer's "last_jump" is done by the
+        # day-change stored procedure. (Also, what would happen if we
+        # were to set it here, and then delete the jump? Anyway, the
+        # sensible way to get last_jump is to actually query for it.
 
         session.commit()
 

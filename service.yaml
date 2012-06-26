@@ -3,6 +3,9 @@ database:
         jr:
             engine:
                 url: mssql+pyodbc://JR
+                # TODO: This is not set correctly by the database provider.
+                pool_size: 2
+                max_overflow: 1
 
 plugins:
   bundles:
@@ -10,20 +13,6 @@ plugins:
       - jr
 
 
-cyclone:
-    site_name:
-        application:
-            handlers:
-                # This beast is just manifests/plane_id/manifest_id/customer_id/item_id --- with every ID being optional.
-                - ['/api/v0/manifests(?:/(?P<plane_id>\d+)(?:/(?P<manifest_id>\d+)(?:/(?P<customer_id>\d+)(?:/(?P<item_id>\d+))?)?)?)?/?', jr.manifest.ManifestHandler]
-                - ['/api/v0/suggest', jr.suggest.SuggestHandler]
-
-                - ['/api/v0/customers/(?P<customer_id>\d+)/?', jr.customer.CustomerHandler]
-                - ['/api/v0/customers/(?P<customer_id>\d+)/payments', jr.customer.PaymentHandler]
-                - ['/api/v0/customers/(?P<customer_id>\d+)/invoices', jr.customer.InvoiceHandler]
-
-            cookie_secret: whateverlkjasdlkfj
-            debug: true
-            debug_allow:
-                - 127.0.0.1
-                - 192.168.133.1
+includes:
+    - sync-client.yaml
+    - site.yaml

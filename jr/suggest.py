@@ -49,7 +49,7 @@ class SuggestHandler(base.Handler):
 
         return (
             session.query(model.Customer).
-            filter(model.Customer.id.in_(user_ids)).
+            filter(model.Customer.customer_id.in_(user_ids)).
             order_by(sa.desc(model.Customer.last_jump)).
             all()
         )
@@ -62,7 +62,7 @@ class SuggestHandler(base.Handler):
         last_jump_cutoff = datetime.datetime(2006, 1, 1)
 
         buf = []
-        for r in engine.execute(sa.select([model.Customer.last_jump, model.Customer.id, model.Customer.name])):
+        for r in engine.execute(sa.select([model.Customer.last_jump, model.Customer.customer_id, model.Customer.name])):
             # JumpRun, you so funny.
             last_jump = int(0 if r[0] < last_jump_cutoff else time.mktime(r[0].timetuple()))
 

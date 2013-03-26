@@ -257,7 +257,7 @@ class Manifest(Base, _ManifestMixin):
 
     plane = orm.relationship('Plane', uselist=False, backref='manifests')
 
-    json_attributes = ('manifest_id', 'status', 'departure') + _CommonMixin.json_attributes
+    json_attributes = ('manifest_id', 'status', 'departure', 'load_number') + _CommonMixin.json_attributes
     json_relations = ('plane', 'invoices')
 
     def populate(self):

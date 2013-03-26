@@ -1,0 +1,26 @@
+<table>
+    <thead>
+    <tr>
+    <th colspan="3">
+        <span class="plane">{{ plane.name }}</span>
+        <span class="load">#{{ load_number }}</span>
+        &mdash;
+        <span class="slots_left">
+{{#if has_free_slots}}
+<span class="slots">{{free_slots}}</span> slots
+{{else}}
+Full
+{{/if}}
+</span>
+        {{#unless should_have_departed}}
+        &mdash;
+        <span class="departure">
+{{departure_in_minutes}} mins
+</span>
+        {{/unless}}
+
+    </th>
+    </tr>
+    </thead>
+    <tbody class="invoices"></tbody>
+</table>

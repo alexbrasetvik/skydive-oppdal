@@ -1,17 +1,41 @@
 cyclone:
     jr:
+        enabled: true
+        #listen: 'tcp:18080:interface=127.0.0.1'
+        listen: 18080
         application:
             handlers:
+                - ['/api/v0/planes/(?P<plane_id>\d+)/manifests/(?P<manifest_id>\d+)?/?', jr.manifest.ManifestHandler]
+
                 # This beast is just manifests/plane_id/manifest_id/customer_id/item_id --- with every ID being optional.
-                - ['/api/v0/manifests(?:/(?P<plane_id>\d+)(?:/(?P<manifest_id>\d+)(?:/(?P<customer_id>\d+)(?:/(?P<item_id>\d+))?)?)?)?/?', jr.manifest.ManifestHandler]
+                - ['/api/v0/planes(?:/(?P<plane_id>\d+)(?:/manifests/(?P<manifest_id>\d+)(?:/(?P<customer_id>\d+)(?:/(?P<item_id>\d+))?)?)?)?/?', jr.manifest.ManifestHandler]
+
                 - ['/api/v0/suggest', jr.suggest.SuggestHandler]
 
                 - ['/api/v0/customers/(?P<customer_id>\d+)/?', jr.customer.CustomerHandler]
                 - ['/api/v0/customers/(?P<customer_id>\d+)/payments', jr.customer.PaymentHandler]
                 - ['/api/v0/customers/(?P<customer_id>\d+)/invoices', jr.customer.InvoiceHandler]
 
+                - [/(.*), cyclone.web.StaticFileHandler, { path: public/, default_filename: "index.html" }]
+
             cookie_secret: whateverlkjasdlkfj
             debug: true
             debug_allow:
+                - 0.0.0.0
                 - 127.0.0.1
                 - 192.168.133.1
+                - 172.16.77.2
+                - 172.16.77.1
+
+    jr-public:
+        enabled: true
+        listen: 8080
+        application:
+            handlers:
+                - ['/api/v0/planes/(?P<plane_id>\d+)/manifests/(?P<manifest_id>\d+)?/?', jr.manifest.ManifestHandler]
+
+                # This beast is just manifests/plane_id/manifest_id/customer_id/item_id --- with every ID being optional.
+                - ['/api/v0/planes(?:/(?P<plane_id>\d+)(?:/(?P<manifest_id>\d+)(?:/(?P<customer_id>\d+)(?:/(?P<item_id>\d+))?)?)?)?/?', jr.manifest.ManifestHandler]
+                # Anything else should be assumed to be something static.
+                - [/(.*), cyclone.web.StaticFileHandler, { path: public/, default_filename: "index.html" }]
+

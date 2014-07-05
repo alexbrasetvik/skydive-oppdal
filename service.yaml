@@ -6,5 +6,5 @@ plugins:
 
 includes:
     - database.yaml
-    - sync-client.yaml
+    #- sync-client.yaml
     - site.yaml

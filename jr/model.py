@@ -107,6 +107,24 @@ def with_session(method, timeout=None):
     return wrapper
 
 
+def with_session(method, timeout=10):
+    """ The wrapped method is invoked with an SQLALchemy session as
+    the first argument. Execution is also deferred to a thread.
+    """
+    @functools.wraps(method)
+    @defer.inlineCallbacks
+    def wrapper(self, *args, **kwargs):
+        engine = yield self.engine_dependency.wait_for_resource(timeout)
+
+        @threads.deferToThread
+        def _():
+            with Session(bind=engine) as session:
+                return method(self, session, *args, **kwargs)
+
+        defer.returnValue( (yield _) )
+    return wrapper
+
+
 class _CommonMixin:
 
     insertion_time = sa.Column('dtInsert', sa.DateTime, default=datetime.datetime.now)
@@ -382,6 +400,10 @@ class ArchivedInvoice(_InvoiceMixin, Base):
 
     manifest_id =  sa.Column('nMani', sa.BigInteger)
     business_date = sa.Column('dtProcess', sa.DateTime, primary_key=True)
+
+    @property
+    def unique_id(self):
+        return '{}-{}'.format(self.business_date.isoformat(), self.invoice_id)
 
     __table_args__ = (
         sa.ForeignKeyConstraint(['dtProcess', 'nMani'], ['tManiAll.dtProcess', 'tManiAll.nMani']),
